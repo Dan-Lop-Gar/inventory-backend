@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package com.inventory;
+
+option java_package = "com.inventory.grpc.generated";
+option java_outer_classname = "NotificationProto";
+option java_multiple_files = true;
+
+// Servicio INTERNO — no se expone via Envoy
+// Solo se llama desde dentro del mismo proceso
+service NotificationService {
+
+  rpc SendStockAlert(StockAlertNotification) returns (NotificationResponse);
+
+  rpc SendOrderNotification(OrderNotification) returns (NotificationResponse);
+}
+
+message StockAlertNotification {
+  string product_id = 1;
+  string product_name = 2;
+  string sku = 3;
+  int32 stock_current = 4;
+  int32 stock_minimum = 5;
+}
+
+message OrderNotification {
+  string order_id = 1;
+  string order_number = 2;
+  string status = 3;
+  string created_by = 4;
+  double total_amount = 5;
+}
+
+message NotificationResponse {
+  bool sent = 1;
+  string message = 2;
+}

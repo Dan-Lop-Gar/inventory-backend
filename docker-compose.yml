@@ -1,0 +1,147 @@
+version: '3.8'
+
+services:
+  postgres-inventory:
+    image: postgres:16-alpine
+    container_name: inventory-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: inventory_db
+      POSTGRES_USER: inventory_user
+      POSTGRES_PASSWORD: inventory_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventory_user -d inventory_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  keycloak-inventory:
+    image: quay.io/keycloak/keycloak:26.0.0
+    container_name: inventory-keycloak
+    ports:
+      - "8180:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres-inventory:5432/inventory_db
+      KC_DB_USERNAME: inventory_user
+      KC_DB_PASSWORD: inventory_pass
+    command: start-dev
+    depends_on:
+      postgres-inventory:
+        condition: service_healthy
+
+  zookeeper-inventory:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: inventory-zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka-inventory:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: inventory-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper-inventory:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka-inventory:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+    depends_on:
+      - zookeeper-inventory
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  hazelcast-inventory:
+    image: hazelcast/hazelcast:5.3
+    container_name: inventory-hazelcast
+    ports:
+      - "5701:5701"
+    environment:
+      HZ_CLUSTERNAME: inventory-cluster
+
+  prometheus-inventory:
+    image: prom/prometheus:v2.51.0
+    container_name: inventory-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  grafana-inventory:
+    image: grafana/grafana:10.4.0
+    container_name: inventory-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus-inventory
+
+  envoy-inventory:
+    image: envoyproxy/envoy:v1.30.0
+    container_name: inventory-envoy
+    ports:
+      - "8090:8090"   # REST transcoding
+      - "9901:9901"   # admin
+    volumes:
+      - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml
+      - ./envoy/proto.pb:/etc/envoy/proto.pb
+#    depends_on:
+#      - backend-inventory
+
+  backend-inventory:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: inventory-backend
+    ports:
+      - "8080:8080"   # REST
+      - "9900:9900"   # gRPC
+    environment:
+      #SPRING_PROFILES_ACTIVE: local
+      DB_HOST: postgres-inventory
+      DB_PORT: 5432
+      DB_NAME: inventory_db
+      DB_USER: inventory_user
+      DB_PASS: inventory_pass
+      KAFKA_BOOTSTRAP: kafka-inventory:29092
+#      KEYCLOAK_ISSUER: http://keycloak-inventory:8080/realms/inventory
+      KEYCLOAK_ISSUER: http://localhost:8180/realms/inventory
+      KEYCLOAK_JWKS_URI: http://keycloak-inventory:8080/realms/inventory/protocol/openid-connect/certs
+      HAZELCAST_ADDRESS: hazelcast-inventory:5701
+
+    depends_on:
+      postgres-inventory:
+        condition: service_healthy
+      kafka-inventory:
+        condition: service_healthy
+      keycloak-inventory:
+        condition: service_started
+      hazelcast-inventory:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  grafana_data:

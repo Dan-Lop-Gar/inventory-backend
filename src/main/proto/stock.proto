@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package com.inventory;
+
+import "google/api/annotations.proto";
+
+option java_package = "com.inventory.grpc.generated";
+option java_outer_classname = "StockProto";
+option java_multiple_files = true;
+
+service StockService {
+
+  rpc GetStockLevel(GetStockLevelRequest) returns (StockLevelResponse) {
+    option (google.api.http) = {
+      get: "/api/grpc/stock/{product_id}"
+    };
+  }
+
+  rpc ListStockMovements(ListStockMovementsRequest) returns (StockMovementListResponse) {
+    option (google.api.http) = {
+      get: "/api/grpc/stock/movements"
+    };
+  }
+
+  rpc GetStockStats(GetStockStatsRequest) returns (StockStatsResponse) {
+    option (google.api.http) = {
+      get: "/api/grpc/stock/stats"
+    };
+  }
+
+  // Interno — no expuesto via Envoy
+  // Se llama desde OrderService cuando se recibe una orden
+  rpc RegisterMovement(RegisterMovementRequest) returns (RegisterMovementResponse);
+}
+
+message GetStockLevelRequest {
+  string product_id = 1;
+}
+
+message StockLevelResponse {
+  string product_id = 1;
+  string product_name = 2;
+  string sku = 3;
+  int32 stock_current = 4;
+  int32 stock_minimum = 5;
+  bool below_minimum = 6;
+}
+
+message ListStockMovementsRequest {
+  string product_id = 1;
+  string movement_type = 2;
+  int32 page = 3;
+  int32 size = 4;
+}
+
+message StockMovementListResponse {
+  repeated StockMovementMessage movements = 1;
+  int32 total_elements = 2;
+  int32 total_pages = 3;
+}
+
+message StockMovementMessage {
+  string id = 1;
+  string product_id = 2;
+  string product_name = 3;
+  string movement_type = 4;
+  int32 quantity = 5;
+  int32 stock_before = 6;
+  int32 stock_after = 7;
+  string created_by = 8;
+  string created_at = 9;
+}
+
+message GetStockStatsRequest {}
+
+message StockStatsResponse {
+  int32 total_products = 1;
+  int32 products_above_minimum = 2;
+  int32 products_below_minimum = 3;
+  repeated DailyMovementStat daily_movements = 4;
+}
+
+message DailyMovementStat {
+  string day = 1;
+  string movement_type = 2;
+  int64 total_quantity = 3;
+  int64 total_movements = 4;
+}
+
+message RegisterMovementRequest {
+  string product_id = 1;
+  string movement_type = 2;
+  int32 quantity = 3;
+  string reference_id = 4;
+  string reference_type = 5;
+  string notes = 6;
+  string created_by = 7;
+}
+
+message RegisterMovementResponse {
+  bool success = 1;
+  int32 stock_after = 2;
+  string message = 3;
+}

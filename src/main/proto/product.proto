@@ -1,0 +1,129 @@
+syntax = "proto3";
+
+package com.inventory;
+
+import "google/api/annotations.proto";
+
+option java_package = "com.inventory.grpc.generated";
+option java_outer_classname = "ProductProto";
+option java_multiple_files = true;
+
+service ProductService {
+
+  rpc GetProduct(GetProductRequest) returns (ProductResponse) {
+    option (google.api.http) = {
+      get: "/api/grpc/products/{product_id}"
+    };
+  }
+
+  rpc ListProducts(ListProductsRequest) returns (ProductListResponse) {
+    option (google.api.http) = {
+      get: "/api/grpc/products"
+    };
+  }
+
+  rpc CreateProduct(CreateProductRequest) returns (ProductResponse) {
+    option (google.api.http) = {
+      post: "/api/grpc/products"
+      body: "*"
+    };
+  }
+
+  rpc UpdateProduct(UpdateProductRequest) returns (ProductResponse) {
+    option (google.api.http) = {
+      put: "/api/grpc/products/{product_id}"
+      body: "*"
+    };
+  }
+
+  rpc DeleteProduct(DeleteProductRequest) returns (DeleteProductResponse) {
+    option (google.api.http) = {
+      delete: "/api/grpc/products/{product_id}"
+    };
+  }
+
+  rpc GetProductStats(GetProductStatsRequest) returns (ProductStatsResponse) {
+    option (google.api.http) = {
+      get: "/api/grpc/products/stats"
+    };
+  }
+}
+
+message GetProductRequest {
+  string product_id = 1;
+}
+
+message ListProductsRequest {
+  string name = 1;
+  string sku = 2;
+  string category_id = 3;
+  bool below_minimum_stock = 4;
+  int32 page = 5;
+  int32 size = 6;
+}
+
+message CreateProductRequest {
+  string sku = 1;
+  string name = 2;
+  string description = 3;
+  double price = 4;
+  int32 stock_current = 5;
+  int32 stock_minimum = 6;
+  string category_id = 7;
+  string supplier_id = 8;
+}
+
+message UpdateProductRequest {
+  string product_id = 1;
+  string name = 2;
+  string description = 3;
+  double price = 4;
+  int32 stock_minimum = 5;
+  bool active = 6;
+}
+
+message DeleteProductRequest {
+  string product_id = 1;
+}
+
+message ProductResponse {
+  string id = 1;
+  string sku = 2;
+  string name = 3;
+  string description = 4;
+  double price = 5;
+  int32 stock_current = 6;
+  int32 stock_minimum = 7;
+  bool active = 8;
+  bool below_minimum_stock = 9;
+  string category_name = 10;
+  string supplier_name = 11;
+}
+
+message ProductListResponse {
+  repeated ProductResponse products = 1;
+  int32 total_elements = 2;
+  int32 total_pages = 3;
+  int32 current_page = 4;
+}
+
+message DeleteProductResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message GetProductStatsRequest {}
+
+message ProductStatsResponse {
+  int32 total_products = 1;
+  int32 products_above_minimum = 2;
+  int32 products_below_minimum = 3;
+  repeated CategoryStat by_category = 4;
+}
+
+message CategoryStat {
+  string category = 1;
+  int64 total_products = 2;
+  int64 total_stock = 3;
+  double avg_price = 4;
+}
