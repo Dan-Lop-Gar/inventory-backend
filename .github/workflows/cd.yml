@@ -84,29 +84,34 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      # Checkout del repo de IAAC — no del backend
       - name: Checkout IAAC repo
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository_owner }}/inventory-iaac-backend
           token: ${{ secrets.IAAC_TOKEN }}
 
-      - name: Actualizar imagen en deployment.yml
+      - name: Actualizar imagen en backend deployment
         run: |
           sed -i \
             "s|image: .*/inventory-backend:.*|image: ${{ secrets.DOCKER_USERNAME }}/inventory-backend:${{ github.sha }}|g" \
             base/backend/deployment.yml
 
+      - name: Actualizar imagen en envoy deployment
+        run: |
+          sed -i \
+            "s|image: .*/inventory-backend:.*|image: ${{ secrets.DOCKER_USERNAME }}/inventory-backend:${{ github.sha }}|g" \
+            base/envoy/deployment.yml
+
       - name: Commit y Push
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add base/backend/deployment.yml
+          git add base/backend/deployment.yml base/envoy/deployment.yml
           
           if git diff --cached --quiet; then
-            echo "No hay cambios en la imagen"
+            echo "No hay cambios en las imágenes"
             exit 0
           fi
           
-          git commit -m "chore: update backend image to ${{ github.sha }}"
+          git commit -m "chore: update backend and envoy images to ${{ github.sha }}"
           git push
